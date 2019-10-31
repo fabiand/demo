@@ -1,5 +1,8 @@
 set -ex
 
+# That's the real flow of the real demo.
+# But it does not work fully automated, physical fingers and eyes are needed.
+
 # https://github.com/kubernetes-sigs/kind#installation-and-usage
 [[ -f kind ]] || curl -Lo kind https://github.com/kubernetes-sigs/kind/releases/download/v0.5.1/kind-linux-amd64
 # https://kubernetes.io/docs/tasks/tools/install-kubectl/
@@ -17,7 +20,7 @@ export VER=v0.22.0
 ./kubectl create configmap -n kubevirt kubevirt-config --from-literal feature-gates="LiveMigration" || :
 ./kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/$VER/kubevirt-cr.yaml ;
 
-./kubectl wait --for=condition=Available -n kubevirt kubevirt kubevirt
+./kubectl wait --timeout=300s --for=condition=Available -n kubevirt kubevirt kubevirt
 
 sed -i "s/bridge/masquerade/" manifests/vm.yaml
 ./kubectl apply -f manifests/vm.yaml
@@ -27,11 +30,15 @@ sed -i "s/bridge/masquerade/" manifests/vm.yaml
 ./kubectl wait --for=condition=Ready vmi testvm
 
 ./virtctl vnc testvm
+./virtctl console testvm
 
-./kubectl describe vmi testvm | grep "Node Name"
+./kubectl get vmi testvm -o jsonpath="{.status.nodeName}"
 ./virtctl migrate testvm
+
 # oops
 bash fix-product-uuid.sh
 ./virtctl stop testvm
 ./virtctl start testvm
-
+./virtctl migrate testvm
+./kubectl get vmi testvm -o jsonpath="{.status.nodeName}"
+./kubectl describe vmi testvm
